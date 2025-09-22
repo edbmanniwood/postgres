@@ -35,6 +35,7 @@
 #include "catalog/pg_partitioned_table.h"
 #include "catalog/pg_proc.h"
 #include "catalog/pg_statistic_ext.h"
+#include "catalog/pg_tablespace.h"
 #include "catalog/pg_trigger.h"
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
@@ -13708,4 +13709,55 @@ get_range_partbound_string(List *bound_datums)
 	appendStringInfoChar(buf, ')');
 
 	return buf->data;
+}
+
+/*
+ * pg_get_tablespace_ddl - Get CREATE TABLESPACE statement for a tablespace
+ */
+Datum
+pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
+{
+	char			   *tablespaceName = text_to_cstring(PG_GETARG_TEXT_PP(0));
+	char			   *path;
+	Oid 				tablespaceOid;
+	StringInfoData		buf;
+	HeapTuple			tuple;
+	char			   *tablespaceOwner;
+	Form_pg_tablespace	tablespaceForm;
+
+
+
+	tablespaceOid = get_tablespace_oid(tablespaceName, false);
+
+	/* Look up the tablespace in pg_tablespace */
+	tuple = SearchSysCache1(TABLESPACEOID, ObjectIdGetDatum(tablespaceOid));
+	Assert(HeapTupleIsValid(tuple));
+	tablespaceForm = (Form_pg_tablespace) GETSTRUCT(tuple);
+
+	initStringInfo(&buf);
+
+	appendStringInfo(&buf, "CREATE TABLESPACE %s",
+					 quote_identifier(tablespaceName));
+
+	/* Add OWNER clause if owner is not current user */
+	if (GetUserId() != tablespaceForm->spcowner)
+	{
+		/* Get the owner name */
+		tablespaceOwner = GetUserNameFromId(tablespaceForm->spcowner,
+											false);
+
+		appendStringInfo(&buf, " OWNER %s", quote_identifier(tablespaceOwner));
+	}
+
+	/* User-facing function pg_tablespace_location() gets the on-disk
+	 * location of the tablespace.
+	 */
+	path = text_to_cstring(DatumGetTextP(DirectFunctionCall1(pg_tablespace_location, tablespaceOid)));
+	appendStringInfo(&buf, " LOCATION '%s'", path);
+
+	/* TODO: the WITH clause and the spcoptions and/or reloptions */
+
+	appendStringInfoChar(&buf, ';');
+
+	PG_RETURN_TEXT_P(string_to_text(buf.data));
 }
