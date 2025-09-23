@@ -68,6 +68,7 @@
 #include "utils/rel.h"
 #include "utils/ruleutils.h"
 #include "utils/snapmgr.h"
+#include "utils/spccache.h"
 #include "utils/syscache.h"
 #include "utils/typcache.h"
 #include "utils/varlena.h"
@@ -13724,9 +13725,8 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 	HeapTuple			tuple;
 	char			   *tablespaceOwner;
 	Form_pg_tablespace	tablespaceForm;
-	Datum				spcoptionsDatum;
-	bool				spcoptionsAreNull;
-
+	double				spc_random_page_cost = 0.0;
+	double				spc_seq_page_cost = 0.0;
 
 
 	tablespaceOid = get_tablespace_oid(tablespaceName, false);
@@ -13758,14 +13758,14 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 					pg_tablespace_location, tablespaceOid)));
 	appendStringInfo(&buf, " LOCATION '%s'", path);
 
-	spcoptionsDatum = SysCacheGetAttr(TABLESPACEOID, tuple,
-			Anum_pg_tablespace_spcoptions, &spcoptionsAreNull);
-	if (!spcoptionsAreNull)
+	get_tablespace_page_costs(tablespaceOid, &spc_random_page_cost,
+			&spc_seq_page_cost);
+	if (spc_random_page_cost != 0.0 || spc_seq_page_cost != 0.0)
 	{
-		char *spcoptionsStr = TextDatumGetCString(spcoptionsDatum);
-		appendStringInfo(&buf, " WITH (%s)", spcoptionsStr);
+		appendStringInfo(&buf,
+				" WITH (random_page_cost = %f, seq_page_cost = %f)",
+				spc_random_page_cost, spc_seq_page_cost);
 	}
-	ReleaseSysCache(tuple);
 
 	appendStringInfoChar(&buf, ';');
 
