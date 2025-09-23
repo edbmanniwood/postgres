@@ -13724,6 +13724,8 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 	HeapTuple			tuple;
 	char			   *tablespaceOwner;
 	Form_pg_tablespace	tablespaceForm;
+	Datum				spcoptionsDatum;
+	bool				spcoptionsAreNull;
 
 
 
@@ -13752,10 +13754,18 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 	/* User-facing function pg_tablespace_location() gets the on-disk
 	 * location of the tablespace.
 	 */
-	path = text_to_cstring(DatumGetTextP(DirectFunctionCall1(pg_tablespace_location, tablespaceOid)));
+	path = text_to_cstring(DatumGetTextP(DirectFunctionCall1(
+					pg_tablespace_location, tablespaceOid)));
 	appendStringInfo(&buf, " LOCATION '%s'", path);
 
-	/* TODO: the WITH clause and the spcoptions and/or reloptions */
+	spcoptionsDatum = SysCacheGetAttr(TABLESPACEOID, tuple,
+			Anum_pg_tablespace_spcoptions, &spcoptionsAreNull);
+	if (!spcoptionsAreNull)
+	{
+		char *spcoptionsStr = TextDatumGetCString(spcoptionsDatum);
+		appendStringInfo(&buf, " WITH (%s)", spcoptionsStr);
+	}
+	ReleaseSysCache(tuple);
 
 	appendStringInfoChar(&buf, ';');
 
