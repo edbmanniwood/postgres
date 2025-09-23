@@ -13727,7 +13727,9 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 	Form_pg_tablespace	tablespaceForm;
 	double				spc_random_page_cost = 0.0;
 	double				spc_seq_page_cost = 0.0;
-
+	int					spc_io_concurrency = 0;
+	int					spc_maintenance_io_concurrency = 0;
+	bool				firstOpt = true;
 
 	tablespaceOid = get_tablespace_oid(tablespaceName, false);
 
@@ -13758,13 +13760,73 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 					pg_tablespace_location, tablespaceOid)));
 	appendStringInfo(&buf, " LOCATION '%s'", path);
 
+	/* Get the four attributes of this tablespace:
+	 * random_page_cost, seq_page_cost, effective_io_concurrency,
+	 * and maintenance_io_concurrency
+	 */
 	get_tablespace_page_costs(tablespaceOid, &spc_random_page_cost,
 			&spc_seq_page_cost);
-	if (spc_random_page_cost != 0.0 || spc_seq_page_cost != 0.0)
+	spc_io_concurrency = get_tablespace_io_concurrency(tablespaceOid);
+	spc_maintenance_io_concurrency = get_tablespace_maintenance_io_concurrency(tablespaceOid);
+
+	/* If any of the attributes are not zero, create a WITH clause and
+	 * list the non-zero attributes.
+	 * PROBLEM: even when a tablespace was created without attributes specified,
+	 * the attributes will be listed here, instead of the attributes not being
+	 * listed at all.
+	 */
+	if (spc_random_page_cost != 0.0
+			|| spc_seq_page_cost != 0.0
+			|| spc_io_concurrency != 0
+			|| spc_maintenance_io_concurrency != 0)
 	{
-		appendStringInfo(&buf,
-				" WITH (random_page_cost = %f, seq_page_cost = %f)",
-				spc_random_page_cost, spc_seq_page_cost);
+		appendStringInfo(&buf, " WITH (");
+
+		if (spc_random_page_cost != 0.0)
+		{
+			if (firstOpt)
+				firstOpt = false;
+			else
+				appendStringInfo(&buf, ", ");
+
+			appendStringInfo(&buf,
+					"random_page_cost = %g", spc_random_page_cost);
+		}
+
+		if (spc_seq_page_cost != 0.0)
+		{
+			if (firstOpt)
+				firstOpt = false;
+			else
+				appendStringInfo(&buf, ", ");
+
+			appendStringInfo(&buf,
+					"seq_page_cost = %g", spc_seq_page_cost);
+		}
+
+		if (spc_io_concurrency != 0)
+		{
+			if (firstOpt)
+				firstOpt = false;
+			else
+				appendStringInfo(&buf, ", ");
+
+			appendStringInfo(&buf,
+					"effective_io_concurrency = %d", spc_io_concurrency);
+		}
+
+		if (spc_maintenance_io_concurrency != 0)
+		{
+			if (firstOpt)
+				firstOpt = false;
+			else
+				appendStringInfo(&buf, ", ");
+
+			appendStringInfo(&buf,
+					"maintenance_io_concurrency = %d", spc_maintenance_io_concurrency);
+		}
+
+		appendStringInfo(&buf, ")");
 	}
 
 	appendStringInfoChar(&buf, ';');
