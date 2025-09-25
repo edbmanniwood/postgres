@@ -22,6 +22,7 @@
 #include "access/amapi.h"
 #include "access/htup_details.h"
 #include "access/relation.h"
+#include "access/reloptions.h"
 #include "access/table.h"
 #include "catalog/pg_aggregate.h"
 #include "catalog/pg_am.h"
@@ -13718,118 +13719,126 @@ get_range_partbound_string(List *bound_datums)
 Datum
 pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 {
-	char			   *tablespaceName = text_to_cstring(PG_GETARG_TEXT_PP(0));
+	char			   *tspname = text_to_cstring(PG_GETARG_TEXT_PP(0));
 	char			   *path;
-	Oid 				tablespaceOid;
-	StringInfoData		buf;
+	char			   *spcowner;
+	bool				isNull;
+	Oid					tspaceoid;
+	Oid					tspowneroid;
+	Datum				datumLocation;
+	Datum				datum;
 	HeapTuple			tuple;
-	char			   *tablespaceOwner;
-	Form_pg_tablespace	tablespaceForm;
-	double				spc_random_page_cost = 0.0;
-	double				spc_seq_page_cost = 0.0;
-	int					spc_io_concurrency = 0;
-	int					spc_maintenance_io_concurrency = 0;
-	bool				firstOpt = true;
+	StringInfoData		buf;
+	TableSpaceOpts	   *opts = NULL;
+	Form_pg_tablespace	tspForm;
 
-	tablespaceOid = get_tablespace_oid(tablespaceName, false);
+	/* "Actually, I wonder if doing get_tablespace_oid() is a good idea at all, because you have to search for the pg_tablespace tuple twice. Maybe it would be better to create another routine in tablespace.c that's like this...
+	 */
+	/* Get the OID of the tablespace name */
+	tspaceoid = get_tablespace_oid(tspname, false);
 
 	/* Look up the tablespace in pg_tablespace */
-	tuple = SearchSysCache1(TABLESPACEOID, ObjectIdGetDatum(tablespaceOid));
+	tuple = SearchSysCache1(TABLESPACEOID, ObjectIdGetDatum(tspaceoid));
+
+	/*
+	 * "one more point is that having an Assert() after a SearchSysCache() is a bit unusual. Normally we do a if/elog sequence in such a case.  I would advise to do the same here.
+	 */
 	Assert(HeapTupleIsValid(tuple));
-	tablespaceForm = (Form_pg_tablespace) GETSTRUCT(tuple);
 
 	initStringInfo(&buf);
 
+	/* Start building the CREATE TABLESPACE statement */
 	appendStringInfo(&buf, "CREATE TABLESPACE %s",
-					 quote_identifier(tablespaceName));
+					 quote_identifier(tspname));
 
-	/* Add OWNER clause if owner is not current user */
-	if (GetUserId() != tablespaceForm->spcowner)
+	/* Get the OID of the owner of the tablespace name */
+	tspForm = (Form_pg_tablespace) GETSTRUCT(tuple);
+	tspowneroid = tspForm->spcowner;
+
+	/* Add OWNER clause, if the owner is not the current user */
+	if (GetUserId() != tspowneroid)
 	{
 		/* Get the owner name */
-		tablespaceOwner = GetUserNameFromId(tablespaceForm->spcowner,
-											false);
+		spcowner = GetUserNameFromId(tspowneroid, false);
 
-		appendStringInfo(&buf, " OWNER %s", quote_identifier(tablespaceOwner));
+		appendStringInfo(&buf, " OWNER %s",
+						 quote_identifier(spcowner));
 	}
 
-	/* User-facing function pg_tablespace_location() gets the on-disk
-	 * location of the tablespace.
-	 */
-	path = text_to_cstring(DatumGetTextP(DirectFunctionCall1(
-					pg_tablespace_location, tablespaceOid)));
-	appendStringInfo(&buf, " LOCATION '%s'", path);
+	/* Find tablespace directory path */
+	datumLocation = DirectFunctionCall1(pg_tablespace_location, tspaceoid);
+	path = text_to_cstring(DatumGetTextP(datumLocation));
+	/* Add directory LOCATION (path), if it exists */
+	if (path[0] != '\0')
+		appendStringInfo(&buf, " LOCATION '%s'", path);
 
-	/* Get the four attributes of this tablespace:
-	 * random_page_cost, seq_page_cost, effective_io_concurrency,
-	 * and maintenance_io_concurrency
-	 */
-	get_tablespace_page_costs(tablespaceOid, &spc_random_page_cost,
-			&spc_seq_page_cost);
-	spc_io_concurrency = get_tablespace_io_concurrency(tablespaceOid);
-	spc_maintenance_io_concurrency = get_tablespace_maintenance_io_concurrency(tablespaceOid);
+	/* Get tablespace's options datum from the tuple */
+	datum = SysCacheGetAttr(TABLESPACEOID,
+							tuple,
+							Anum_pg_tablespace_spcoptions,
+							&isNull);
 
-	/* If any of the attributes are not zero, create a WITH clause and
-	 * list the non-zero attributes.
-	 * PROBLEM: even when a tablespace was created without attributes specified,
-	 * the attributes will be listed here, instead of the attributes not being
-	 * listed at all.
-	 */
-	if (spc_random_page_cost != 0.0
-			|| spc_seq_page_cost != 0.0
-			|| spc_io_concurrency != 0
-			|| spc_maintenance_io_concurrency != 0)
+	if (!isNull)
 	{
+		bool        needcomma = false;
+		bytea      *bytea_opts = tablespace_reloptions(datum, false);
+
+		opts = (TableSpaceOpts *) palloc0(VARSIZE(bytea_opts));
+		memcpy(opts, bytea_opts, VARSIZE(bytea_opts));
+
+		/* Add the valid options in WITH clause */
 		appendStringInfo(&buf, " WITH (");
 
-		if (spc_random_page_cost != 0.0)
+		if (opts->random_page_cost > 0)
 		{
-			if (firstOpt)
-				firstOpt = false;
-			else
-				appendStringInfo(&buf, ", ");
-
-			appendStringInfo(&buf,
-					"random_page_cost = %g", spc_random_page_cost);
+			appendStringInfo(&buf, "random_page_cost = %g",
+							 opts->random_page_cost);
+			needcomma = true;
 		}
 
-		if (spc_seq_page_cost != 0.0)
+		if (opts->seq_page_cost > 0)
 		{
-			if (firstOpt)
-				firstOpt = false;
+			if (needcomma)
+				appendStringInfo(&buf, ", seq_page_cost = %g",
+								 opts->seq_page_cost);
 			else
-				appendStringInfo(&buf, ", ");
-
-			appendStringInfo(&buf,
-					"seq_page_cost = %g", spc_seq_page_cost);
+				appendStringInfo(&buf, "seq_page_cost = %g",
+								 opts->seq_page_cost);
+			needcomma = true;
 		}
 
-		if (spc_io_concurrency != 0)
+		if (opts->effective_io_concurrency > 0)
 		{
-			if (firstOpt)
-				firstOpt = false;
+			if (needcomma)
+				appendStringInfo(&buf, ", effective_io_concurrency = %d",
+								 opts->effective_io_concurrency);
 			else
-				appendStringInfo(&buf, ", ");
-
-			appendStringInfo(&buf,
-					"effective_io_concurrency = %d", spc_io_concurrency);
+				appendStringInfo(&buf, "effective_io_concurrency = %d",
+								 opts->effective_io_concurrency);
+			needcomma = true;
 		}
 
-		if (spc_maintenance_io_concurrency != 0)
+		if (opts->maintenance_io_concurrency > 0)
 		{
-			if (firstOpt)
-				firstOpt = false;
+			if (needcomma)
+				appendStringInfo(&buf, ", maintenance_io_concurrency = %d",
+								 opts->maintenance_io_concurrency);
 			else
-				appendStringInfo(&buf, ", ");
-
-			appendStringInfo(&buf,
-					"maintenance_io_concurrency = %d", spc_maintenance_io_concurrency);
+				appendStringInfo(&buf, "maintenance_io_concurrency = %d",
+								 opts->maintenance_io_concurrency);
 		}
+
+		/* Clean the opts now */
+		pfree(opts);
 
 		appendStringInfo(&buf, ")");
 	}
 
+	ReleaseSysCache(tuple);
+
+	/* Finally add semicolon to the statement */
 	appendStringInfoChar(&buf, ';');
 
 	PG_RETURN_TEXT_P(string_to_text(buf.data));
 }
+
