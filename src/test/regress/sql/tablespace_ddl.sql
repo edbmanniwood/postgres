@@ -19,10 +19,15 @@ CREATE TABLESPACE regress_tblspcuser OWNER regress_user LOCATION '' WITH (random
 -- see that the tablespace ddl is correctly returned
 SELECT pg_get_tablespace_ddl('regress_tblspcuser');
 
+-- create a tablespace using all the options
+CREATE TABLESPACE regress_tblspc_all LOCATION '' WITH (seq_page_cost = 1.5, random_page_cost = 1.6, effective_io_concurrency = 17, maintenance_io_concurrency = 18); -- ok
+-- see that the tablespace ddl is correctly returned
+SELECT pg_get_tablespace_ddl('regress_tblspc_all');
 
--- drop the tablespace
+-- drop the tablespaces
 DROP TABLESPACE regress_tblspc;
 DROP TABLESPACE regress_tblspacewith;
 DROP TABLESPACE regress_tblspcuser;
 DROP USER regress_user;
+DROP TABLESPACE regress_tblspc_all;
 
