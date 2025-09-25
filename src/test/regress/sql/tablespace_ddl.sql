@@ -5,10 +5,18 @@ SET allow_in_place_tablespaces = true;
 
 -- create a tablespace using WITH clause
 CREATE TABLESPACE regress_tblspacewith LOCATION '' WITH (random_page_cost = 3.0); -- ok
-
 -- see that the tablespace ddl is correctly returned
 SELECT pg_get_tablespace_ddl('regress_tblspacewith');
 
+-- create tablespace owned by a particular user
+CREATE USER regress_user;
+CREATE TABLESPACE regress_tblspcuser OWNER regress_user LOCATION '' WITH (random_page_cost = 3.0); -- ok
+-- see that the tablespace ddl is correctly returned
+SELECT pg_get_tablespace_ddl('regress_tblspcuser');
+
+
 -- drop the tablespace
 DROP TABLESPACE regress_tblspacewith;
+DROP TABLESPACE regress_tblspcuser;
+DROP USER regress_user;
 
