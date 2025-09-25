@@ -13765,7 +13765,16 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 	path = text_to_cstring(DatumGetTextP(datumLocation));
 	/* Add directory LOCATION (path), if it exists */
 	if (path[0] != '\0')
-		appendStringInfo(&buf, " LOCATION '%s'", path);
+	{
+		/* Special case: if the tablespace was created with GUC
+		 * "allow_in_place_tablespaces = true" and "LOCATION ''",
+		 * path will begin with "pg_tblspc/". In that case, show
+		 * "LOCATION ''" as the user originally specified. */
+		if (strncmp("pg_tblspc/", path, 10) == 0)
+			appendStringInfo(&buf, " LOCATION ''");
+		else
+			appendStringInfo(&buf, " LOCATION '%s'", path);
+	}
 
 	/* Get tablespace's options datum from the tuple */
 	datum = SysCacheGetAttr(TABLESPACEOID,
