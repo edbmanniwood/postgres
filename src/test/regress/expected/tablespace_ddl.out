@@ -6,9 +6,9 @@ SET allow_in_place_tablespaces = true;
 CREATE TABLESPACE regress_tblspacewith LOCATION '' WITH (random_page_cost = 3.0); -- ok
 -- see that the tablespace ddl is correctly returned
 SELECT pg_get_tablespace_ddl('regress_tblspacewith');
-                                     pg_get_tablespace_ddl
-------------------------------------------------------------------------------------------------
- CREATE TABLESPACE regress_tblspacewith LOCATION 'pg_tblspc/17342' WITH (random_page_cost = 3);
+                              pg_get_tablespace_ddl                              
+---------------------------------------------------------------------------------
+ CREATE TABLESPACE regress_tblspacewith LOCATION '' WITH (random_page_cost = 3);
 (1 row)
 
 -- drop the tablespace
