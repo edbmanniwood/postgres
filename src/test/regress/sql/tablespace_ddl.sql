@@ -3,6 +3,11 @@
 -- 2) not have to create a directory on the filesytem to match LOCATION
 SET allow_in_place_tablespaces = true;
 
+-- create a tablespace using no options
+CREATE TABLESPACE regress_tblspc LOCATION ''; -- ok
+-- see that the tablespace ddl is correctly returned
+SELECT pg_get_tablespace_ddl('regress_tblspc');
+
 -- create a tablespace using WITH clause
 CREATE TABLESPACE regress_tblspacewith LOCATION '' WITH (random_page_cost = 3.0); -- ok
 -- see that the tablespace ddl is correctly returned
@@ -16,6 +21,7 @@ SELECT pg_get_tablespace_ddl('regress_tblspcuser');
 
 
 -- drop the tablespace
+DROP TABLESPACE regress_tblspc;
 DROP TABLESPACE regress_tblspacewith;
 DROP TABLESPACE regress_tblspcuser;
 DROP USER regress_user;
