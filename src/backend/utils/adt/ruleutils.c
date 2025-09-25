@@ -13732,17 +13732,12 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 	TableSpaceOpts	   *opts = NULL;
 	Form_pg_tablespace	tspForm;
 
-	/* "Actually, I wonder if doing get_tablespace_oid() is a good idea at all, because you have to search for the pg_tablespace tuple twice. Maybe it would be better to create another routine in tablespace.c that's like this...
-	 */
 	/* Get the OID of the tablespace name */
 	tspaceoid = get_tablespace_oid(tspname, false);
 
 	/* Look up the tablespace in pg_tablespace */
 	tuple = SearchSysCache1(TABLESPACEOID, ObjectIdGetDatum(tspaceoid));
 
-	/*
-	 * "one more point is that having an Assert() after a SearchSysCache() is a bit unusual. Normally we do a if/elog sequence in such a case.  I would advise to do the same here.
-	 */
 	Assert(HeapTupleIsValid(tuple));
 
 	initStringInfo(&buf);
