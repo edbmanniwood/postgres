@@ -13719,18 +13719,18 @@ get_range_partbound_string(List *bound_datums)
 Datum
 pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 {
-	char			   *tspname = text_to_cstring(PG_GETARG_TEXT_PP(0));
-	char			   *path;
-	char			   *spcowner;
-	bool				isNull;
-	Oid					tspaceoid;
-	Oid					tspowneroid;
-	Datum				datumLocation;
-	Datum				datum;
-	HeapTuple			tuple;
-	StringInfoData		buf;
-	TableSpaceOpts	   *opts = NULL;
-	Form_pg_tablespace	tspForm;
+	char	   *tspname = text_to_cstring(PG_GETARG_TEXT_PP(0));
+	char	   *path;
+	char	   *spcowner;
+	bool		isNull;
+	Oid			tspaceoid;
+	Oid			tspowneroid;
+	Datum		datumLocation;
+	Datum		datum;
+	HeapTuple	tuple;
+	StringInfoData buf;
+	TableSpaceOpts *opts = NULL;
+	Form_pg_tablespace tspForm;
 
 	/* Get the OID of the tablespace name */
 	tspaceoid = get_tablespace_oid(tspname, false);
@@ -13766,10 +13766,12 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 	/* Add directory LOCATION (path), if it exists */
 	if (path[0] != '\0')
 	{
-		/* Special case: if the tablespace was created with GUC
-		 * "allow_in_place_tablespaces = true" and "LOCATION ''",
-		 * path will begin with "pg_tblspc/". In that case, show
-		 * "LOCATION ''" as the user originally specified. */
+		/*
+		 * Special case: if the tablespace was created with GUC
+		 * "allow_in_place_tablespaces = true" and "LOCATION ''", path will
+		 * begin with "pg_tblspc/". In that case, show "LOCATION ''" as the
+		 * user originally specified.
+		 */
 		if (strncmp(PG_TBLSPC_DIR_SLASH, path, strlen(PG_TBLSPC_DIR_SLASH)) == 0)
 			appendStringInfo(&buf, " LOCATION ''");
 		else
@@ -13784,8 +13786,8 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 
 	if (!isNull)
 	{
-		bool        needcomma = false;
-		bytea      *bytea_opts = tablespace_reloptions(datum, false);
+		bool		needcomma = false;
+		bytea	   *bytea_opts = tablespace_reloptions(datum, false);
 
 		opts = (TableSpaceOpts *) palloc0(VARSIZE(bytea_opts));
 		memcpy(opts, bytea_opts, VARSIZE(bytea_opts));
@@ -13845,4 +13847,3 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 
 	PG_RETURN_TEXT_P(string_to_text(buf.data));
 }
-
