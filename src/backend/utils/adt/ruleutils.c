@@ -13770,7 +13770,7 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 		 * "allow_in_place_tablespaces = true" and "LOCATION ''",
 		 * path will begin with "pg_tblspc/". In that case, show
 		 * "LOCATION ''" as the user originally specified. */
-		if (strncmp("pg_tblspc/", path, 10) == 0)
+		if (strncmp(PG_TBLSPC_DIR_SLASH, path, strlen(PG_TBLSPC_DIR_SLASH)) == 0)
 			appendStringInfo(&buf, " LOCATION ''");
 		else
 			appendStringInfo(&buf, " LOCATION '%s'", path);
