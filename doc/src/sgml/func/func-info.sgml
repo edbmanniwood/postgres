@@ -3827,7 +3827,7 @@ acl      | {postgres=arwdDxtm/postgres,foo=r/postgres}
         <indexterm>
          <primary>pg_get_tablespace_ddl</primary>
         </indexterm>
-        <function>pg_get_tablespace_ddl</function> ()
+        <function>pg_get_tablespace_ddl</function>
         ( <parameter>tablespace</parameter> <type>text</type> )
         <returnvalue>text</returnvalue>
        </para>
