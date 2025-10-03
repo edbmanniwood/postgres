@@ -8509,7 +8509,7 @@
   proargtypes => 'oid bool', prosrc => 'pg_get_constraintdef_ext' },
 { oid => '8758', descr => 'get CREATE statement for tablespace',
   proname => 'pg_get_tablespace_ddl', prorettype => 'text',
-  proargtypes => 'text', prosrc => 'pg_get_tablespace_ddl' },
+  proargtypes => 'name', prosrc => 'pg_get_tablespace_ddl' },
 { oid => '2509',
   descr => 'deparse an encoded expression with pretty-print option',
   proname => 'pg_get_expr', provolatile => 's', prorettype => 'text',

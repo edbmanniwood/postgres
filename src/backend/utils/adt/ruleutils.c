@@ -13725,7 +13725,7 @@ get_range_partbound_string(List *bound_datums)
 Datum
 pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 {
-	char	   *tspname = text_to_cstring(PG_GETARG_TEXT_PP(0));
+	Name		tspname;
 	char	   *path;
 	char	   *spcowner;
 	bool		isNull;
@@ -13738,19 +13738,30 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 	TableSpaceOpts *opts = NULL;
 	Form_pg_tablespace tspForm;
 
-	/* Get the OID of the tablespace name */
-	tspaceoid = get_tablespace_oid(tspname, false);
+	if (PG_ARGISNULL(0))
+		ereport(ERROR,
+				(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+						errmsg("input cannot be null")));
+
+	tspname = PG_GETARG_NAME(0);
+
+	/* Get the OID of the tablespace; we need it to find the tablespace */
+	tspaceoid = get_tablespace_oid(NameStr(*tspname), false);
 
 	/* Look up the tablespace in pg_tablespace */
 	tuple = SearchSysCache1(TABLESPACEOID, ObjectIdGetDatum(tspaceoid));
 
-	Assert(HeapTupleIsValid(tuple));
+	if (!HeapTupleIsValid(tuple))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+					errmsg("tablespace \"%s\" does not exist",
+							NameStr(*tspname))));
 
 	initStringInfo(&buf);
 
 	/* Start building the CREATE TABLESPACE statement */
 	appendStringInfo(&buf, "CREATE TABLESPACE %s",
-					 quote_identifier(tspname));
+					 quote_identifier(NameStr(*tspname)));
 
 	/* Get the OID of the owner of the tablespace name */
 	tspForm = (Form_pg_tablespace) GETSTRUCT(tuple);
@@ -13783,6 +13794,8 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 		else
 			appendStringInfo(&buf, " LOCATION '%s'", path);
 	}
+
+///////////
 
 	/* Get tablespace's options datum from the tuple */
 	datum = SysCacheGetAttr(TABLESPACEOID,
