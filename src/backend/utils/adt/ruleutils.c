@@ -13795,8 +13795,6 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 			appendStringInfo(&buf, " LOCATION '%s'", path);
 	}
 
-///////////
-
 	/* Get tablespace's options datum from the tuple */
 	datum = SysCacheGetAttr(TABLESPACEOID,
 							tuple,
@@ -13805,9 +13803,7 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 
 	if (!isNull)
 	{
-		bool		needcomma = false;
 		bytea	   *bytea_opts = tablespace_reloptions(datum, false);
-
 		opts = (TableSpaceOpts *) palloc0(VARSIZE(bytea_opts));
 		memcpy(opts, bytea_opts, VARSIZE(bytea_opts));
 
@@ -13815,43 +13811,24 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 		appendStringInfo(&buf, " WITH (");
 
 		if (opts->random_page_cost > 0)
-		{
-			appendStringInfo(&buf, "random_page_cost = %g",
+			appendStringInfo(&buf, "random_page_cost = %g, ",
 							 opts->random_page_cost);
-			needcomma = true;
-		}
 
 		if (opts->seq_page_cost > 0)
-		{
-			if (needcomma)
-				appendStringInfo(&buf, ", seq_page_cost = %g",
+			appendStringInfo(&buf, "seq_page_cost = %g, ",
 								 opts->seq_page_cost);
-			else
-				appendStringInfo(&buf, "seq_page_cost = %g",
-								 opts->seq_page_cost);
-			needcomma = true;
-		}
 
 		if (opts->effective_io_concurrency > 0)
-		{
-			if (needcomma)
-				appendStringInfo(&buf, ", effective_io_concurrency = %d",
+			appendStringInfo(&buf, "effective_io_concurrency = %d, ",
 								 opts->effective_io_concurrency);
-			else
-				appendStringInfo(&buf, "effective_io_concurrency = %d",
-								 opts->effective_io_concurrency);
-			needcomma = true;
-		}
 
 		if (opts->maintenance_io_concurrency > 0)
-		{
-			if (needcomma)
-				appendStringInfo(&buf, ", maintenance_io_concurrency = %d",
+			appendStringInfo(&buf, "maintenance_io_concurrency = %d, ",
 								 opts->maintenance_io_concurrency);
-			else
-				appendStringInfo(&buf, "maintenance_io_concurrency = %d",
-								 opts->maintenance_io_concurrency);
-		}
+
+		/* Remove trailing comma and space */
+		buf.len -= 2;
+		buf.data[buf.len] = '\0';  /* Null-terminate the modified string */
 
 		/* Clean the opts now */
 		pfree(opts);
