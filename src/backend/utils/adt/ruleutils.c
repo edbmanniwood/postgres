@@ -13741,7 +13741,7 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 	if (PG_ARGISNULL(0))
 		ereport(ERROR,
 				(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
-						errmsg("input cannot be null")));
+				 errmsg("input cannot be null")));
 
 	tspname = PG_GETARG_NAME(0);
 
@@ -13754,8 +13754,8 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 	if (!HeapTupleIsValid(tuple))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_OBJECT),
-					errmsg("tablespace \"%s\" does not exist",
-							NameStr(*tspname))));
+				 errmsg("tablespace \"%s\" does not exist",
+						NameStr(*tspname))));
 
 	initStringInfo(&buf);
 
@@ -13804,6 +13804,7 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 	if (!isNull)
 	{
 		bytea	   *bytea_opts = tablespace_reloptions(datum, false);
+
 		opts = (TableSpaceOpts *) palloc0(VARSIZE(bytea_opts));
 		memcpy(opts, bytea_opts, VARSIZE(bytea_opts));
 
@@ -13816,19 +13817,19 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 
 		if (opts->seq_page_cost > 0)
 			appendStringInfo(&buf, "seq_page_cost = %g, ",
-								 opts->seq_page_cost);
+							 opts->seq_page_cost);
 
 		if (opts->effective_io_concurrency > 0)
 			appendStringInfo(&buf, "effective_io_concurrency = %d, ",
-								 opts->effective_io_concurrency);
+							 opts->effective_io_concurrency);
 
 		if (opts->maintenance_io_concurrency > 0)
 			appendStringInfo(&buf, "maintenance_io_concurrency = %d, ",
-								 opts->maintenance_io_concurrency);
+							 opts->maintenance_io_concurrency);
 
 		/* buf ends up with unwanted trailing comma and space; remove them */
 		buf.len -= 2;
-		buf.data[buf.len] = '\0';  /* Null-terminate the modified string */
+		buf.data[buf.len] = '\0';	/* Null-terminate the modified string */
 
 		/* Free the opts now */
 		pfree(opts);
