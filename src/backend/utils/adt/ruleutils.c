@@ -13790,7 +13790,7 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 		 * user originally specified.
 		 */
 		if (strncmp(PG_TBLSPC_DIR_SLASH, path, strlen(PG_TBLSPC_DIR_SLASH)) == 0)
-			appendStringInfo(&buf, " LOCATION ''");
+			appendStringInfoString(&buf, " LOCATION ''");
 		else
 			appendStringInfo(&buf, " LOCATION '%s'", path);
 	}
@@ -13808,7 +13808,7 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 		memcpy(opts, bytea_opts, VARSIZE(bytea_opts));
 
 		/* Add the valid options in WITH clause */
-		appendStringInfo(&buf, " WITH (");
+		appendStringInfoString(&buf, " WITH (");
 
 		if (opts->random_page_cost > 0)
 			appendStringInfo(&buf, "random_page_cost = %g, ",
@@ -13826,14 +13826,14 @@ pg_get_tablespace_ddl(PG_FUNCTION_ARGS)
 			appendStringInfo(&buf, "maintenance_io_concurrency = %d, ",
 								 opts->maintenance_io_concurrency);
 
-		/* Remove trailing comma and space */
+		/* buf ends up with unwanted trailing comma and space; remove them */
 		buf.len -= 2;
 		buf.data[buf.len] = '\0';  /* Null-terminate the modified string */
 
-		/* Clean the opts now */
+		/* Free the opts now */
 		pfree(opts);
 
-		appendStringInfo(&buf, ")");
+		appendStringInfoString(&buf, ")");
 	}
 
 	ReleaseSysCache(tuple);
